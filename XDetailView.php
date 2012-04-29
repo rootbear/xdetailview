@@ -9,7 +9,10 @@
  * version: 1.0 - this is original copy of CDetailView class just rename to XDetail to work on;
  *                credit goes to original author qiang.xue 
  * 
- * version: 1.1 - support multiple column pairs; new parameter {ItemColumns} added to specify column count
+ * version: 1.1 - supports multiple column pairs; new parameter {ItemColumns} added to specify column count
+ * 
+ * version: 2.0 - 2012-04-19
+ *		supports nested {attributes} as group!
  * 
  */
 
@@ -19,11 +22,13 @@ class XDetailView extends CDetailView
 	/**
      * Newly Added Parameters to support multiple columns
 	 */
-    private $_aryColumns;
+    //private $_aryColumns;
+	public $_aryColumns;
  
     public $tagNameTR='tr';
-    public $itemTemplate="<th>{label}</th><td>{value}</td>";
-    public $ItemColumns = 1;
+    public $itemTemplate='<th>{label}</th><td>{value}</td>';
+	public $itemTemplateMerge='<td colspan="2">{value}</td>';
+	public $ItemColumns = 1;
  
     //different default value
     public $nullDisplay = '';
@@ -38,10 +43,16 @@ class XDetailView extends CDetailView
 	 */
 	public function init()
 	{
-        $this->_aryColumns = array_fill(1, $this->ItemColumns, $this->itemTemplate);
+		//$this->_aryColumns = array_fill(1, $this->ItemColumns, $this->itemTemplate);
+		$this->_init();
         return parent::init();
 	}
 
+	private function _init()
+	{
+		$this->_aryColumns = array_fill(1, $this->ItemColumns, $this->itemTemplate);
+	}
+	
 	/**
 	 * Renders the detail view.
 	 * This is the main entry of the whole detail view rendering.
@@ -50,8 +61,15 @@ class XDetailView extends CDetailView
 	 */
 	public function run()
 	{
+		echo $this->_getDetailView();
+	}
+	
+	private function _getDetailView()
+	{
+		$result = '';
+	
 		$formatter=$this->getFormatter();
-		echo CHtml::openTag($this->tagName,$this->htmlOptions);
+		$result .= CHtml::openTag($this->tagName,$this->htmlOptions);
 
 		$i=0;
 		$n=is_array($this->itemCssClass) ? count($this->itemCssClass) : 0;
@@ -97,18 +115,65 @@ class XDetailView extends CDetailView
 			else
 				$value=null;
 
-			$tr['{value}']=$value===null ? $this->nullDisplay : $formatter->format($value,$attribute['type']);
+			/*
+			 * nested {attributes} supported added here by recursive call
+			 *
+			 */
+			if(isset($attribute['attributes']) && is_array($attribute['attributes'])){
+				$oChildXDView = new XDetailView();
+				
+				/*
+				 * property which ALWAYS needs to inherit parent's property
+				 *
+				 */
+				$oChildXDView->data = $this->data;				
 
-            $this->_aryColumns[$j] = strtr(isset($attribute['template']) ? $attribute['template'] : $this->itemTemplate,$tr);
+				/*
+				 * iterate through all public properties from parent
+				 *
+				 */
+				foreach($this as $key => $value) {
+					if (isset($attribute[$key])) 
+						$oChildXDView->{$key} = $attribute[$key];
+				}
+
+				/*
+				 * get the child's XDetailView content as 'value' property
+				 *
+				 */				
+				$oChildXDView->_init();
+				
+				$value = $oChildXDView->_getDetailView();
+				
+				/*
+				 * reset sub-object's display block type
+				 *
+				 */
+				$attribute['type']='raw';
+				
+				/*
+				 * magic starts here
+				 *
+				 */
+				$tr['{value}']=$value===null ? $this->nullDisplay : $formatter->format($value,$attribute['type']);
+
+				//merge label & value, since there is no label for child's block
+				$this->_aryColumns[$j] = strtr(isset($attribute['template']) ? $attribute['template'] : $this->itemTemplateMerge,$tr);
+			
+			} else {
+				$tr['{value}']=$value===null ? $this->nullDisplay : $formatter->format($value,$attribute['type']);
+
+				$this->_aryColumns[$j] = strtr(isset($attribute['template']) ? $attribute['template'] : $this->itemTemplate,$tr);
+			}
  
             if ($j == $this->ItemColumns){
-                echo CHtml::openTag($this->tagNameTR,array('class'=>$n ? $this->itemCssClass[intval($i/$this->ItemColumns)%$n] : ''));
+				$result .= CHtml::openTag($this->tagNameTR,array('class'=>$n ? $this->itemCssClass[intval($i/$this->ItemColumns)%$n] : ''));
                 for ( $k = 1; $k <= $this->ItemColumns; $k += 1) {
-                    echo $this->_aryColumns[$k];
+					$result .= $this->_aryColumns[$k];
                     //reset in case the total [fields count] % [itemcolumns] <> 0
                     $this->_aryColumns[$k] = '<th></th><td></td>';
                 }
-                echo CHtml::closeTag($this->tagNameTR);
+				$result .= CHtml::closeTag($this->tagNameTR);
                 $j = 1;
             } else {
                 $j = $j + 1;
@@ -117,12 +182,15 @@ class XDetailView extends CDetailView
         }
 			//any left over fields?
 			if ($i % $this->ItemColumns != 0){
-				echo CHtml::openTag($this->tagNameTR,array('class'=>$n ? $this->itemCssClass[intval($i/$this->ItemColumns)%$n] : ''));
+			$result .= CHtml::openTag($this->tagNameTR,array('class'=>$n ? $this->itemCssClass[intval($i/$this->ItemColumns)%$n] : ''));
 				for ( $k = 1; $k <= $this->ItemColumns; $k += 1) {
-					echo $this->_aryColumns[$k];
+				$result .= $this->_aryColumns[$k];
 			}
-				echo CHtml::closeTag($this->tagNameTR);
+			$result .= CHtml::closeTag($this->tagNameTR);
 		}
-        echo CHtml::closeTag($this->tagName);
+
+		$result .= CHtml::closeTag($this->tagName);
+
+		return $result;
 	}
 }
