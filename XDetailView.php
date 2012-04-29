@@ -1,6 +1,6 @@
 <?php
 /**
- * CDetailView class file.
+ * XDetailView class file.
  *
  * @author rootbear
  * @link http://www.yiiframework.com/
@@ -9,91 +9,28 @@
  * version: 1.0 - this is original copy of CDetailView class just rename to XDetail to work on;
  *                credit goes to original author qiang.xue 
  * 
+ * version: 1.1 - support multiple column pairs; new parameter {ItemColumns} added to specify column count
+ * 
  */
 
-class XDetailView extends CWidget
+Yii::import("zii.widgets.CDetailView");
+class XDetailView extends CDetailView
 {
-	private $_formatter;
-
 	/**
-	 * @var mixed the data model whose details are to be displayed. This can be either a {@link CModel} instance
-	 * (e.g. a {@link CActiveRecord} object or a {@link CFormModel} object) or an associative array.
+     * Newly Added Parameters to support multiple columns
 	 */
-	public $data;
+    private $_aryColumns;
+ 
+    public $tagNameTR='tr';
+    public $itemTemplate="<th>{label}</th><td>{value}</td>";
+    public $ItemColumns = 1;
+ 
+    //different default value
+    public $nullDisplay = '';
+ 
 	/**
-	 * @var array a list of attributes to be displayed in the detail view. Each array element
-	 * represents the specification for displaying one particular attribute.
-	 *
-	 * An attribute can be specified as a string in the format of "Name:Type:Label".
-	 * Both "Type" and "Label" are optional.
-	 *
-	 * "Name" refers to the attribute name. It can be either a property (e.g. "title") or a sub-property (e.g. "owner.username").
-	 *
-	 * "Label" represents the label for the attribute display. If it is not given, "Name" will be used to generate the appropriate label.
-	 *
-	 * "Type" represents the type of the attribute. It determines how the attribute value should be formatted and displayed.
-	 * It is defaulted to be 'text'.
-	 * "Type" should be recognizable by the {@link formatter}. In particular, if "Type" is "xyz", then the "formatXyz" method
-	 * of {@link formatter} will be invoked to format the attribute value for display. By default when {@link CFormatter} is used,
-	 * these "Type" values are valid: raw, text, ntext, html, date, time, datetime, boolean, number, email, image, url.
-	 * For more details about these types, please refer to {@link CFormatter}.
-	 *
-	 * An attribute can also be specified in terms of an array with the following elements:
-	 * <ul>
-	 * <li>label: the label associated with the attribute. If this is not specified, the following "name" element
-	 * will be used to generate an appropriate label.</li>
-	 * <li>name: the name of the attribute. This can be either a property or a sub-property of the model.
-	 * If the below "value" element is specified, this will be ignored.</li>
-	 * <li>value: the value to be displayed. If this is not specified, the above "name" element will be used
-	 * to retrieve the corresponding attribute value for display. Note that this value will be formatted according
-	 * to the "type" option as described below.</li>
-	 * <li>type: the type of the attribute that determines how the attribute value would be formatted.
-	 * Please see above for possible values.
-	 * <li>cssClass: the CSS class to be used for this item. This option is available since version 1.1.3.</li>
-	 * <li>template: the template used to render the attribute. If this is not specified, {@link itemTemplate}
-	 * will be used instead. For more details on how to set this option, please refer to {@link itemTemplate}.
-	 * This option is available since version 1.1.1.</li>
-	 * <li>visible: whether the attribute is visible. If set to <code>false</code>, the table row for the attribute will not be rendered.
-	 * This option is available since version 1.1.5.</li>
-	 * </ul>
+     * END::Newly Added Parameters to support multiple columns
 	 */
-	public $attributes;
-	/**
-	 * @var string the text to be displayed when an attribute value is null. Defaults to "Not set".
-	 */
-	public $nullDisplay;
-	/**
-	 * @var string the name of the tag for rendering the detail view. Defaults to 'table'.
-	 * @see itemTemplate
-	 */
-	public $tagName='table';
-	/**
-	 * @var string the template used to render a single attribute. Defaults to a table row.
-	 * These tokens are recognized: "{class}", "{label}" and "{value}". They will be replaced
-	 * with the CSS class name for the item, the label and the attribute value, respectively.
-	 * @see itemCssClass
-	 */
-	public $itemTemplate="<tr class=\"{class}\"><th>{label}</th><td>{value}</td></tr>\n";
-	/**
-	 * @var array the CSS class names for the items displaying attribute values. If multiple CSS class names are given,
-	 * they will be assigned to the items sequentially and repeatedly.
-	 * Defaults to <code>array('odd', 'even')</code>.
-	 */
-	public $itemCssClass=array('odd','even');
-	/**
-	 * @var array the HTML options used for {@link tagName}
-	 */
-	public $htmlOptions=array('class'=>'detail-view');
-	/**
-	 * @var string the base script URL for all detail view resources (e.g. javascript, CSS file, images).
-	 * Defaults to null, meaning using the integrated detail view resources (which are published as assets).
-	 */
-	public $baseScriptUrl;
-	/**
-	 * @var string the URL of the CSS file used by this detail view. Defaults to null, meaning using the integrated
-	 * CSS file. If this is set false, you are responsible to explicitly include the necessary CSS file in your page.
-	 */
-	public $cssFile;
 
 	/**
 	 * Initializes the detail view.
@@ -101,35 +38,15 @@ class XDetailView extends CWidget
 	 */
 	public function init()
 	{
-		if($this->data===null)
-			throw new CException(Yii::t('zii','Please specify the "data" property.'));
-		if($this->attributes===null)
-		{
-			if($this->data instanceof CModel)
-				$this->attributes=$this->data->attributeNames();
-			else if(is_array($this->data))
-				$this->attributes=array_keys($this->data);
-			else
-				throw new CException(Yii::t('zii','Please specify the "attributes" property.'));
-		}
-		if($this->nullDisplay===null)
-			$this->nullDisplay='<span class="null">'.Yii::t('zii','Not set').'</span>';
-		$this->htmlOptions['id']=$this->getId();
-
-		if($this->baseScriptUrl===null)
-			$this->baseScriptUrl=Yii::app()->getAssetManager()->publish(Yii::getPathOfAlias('zii.widgets.assets')).'/detailview';
-
-		if($this->cssFile!==false)
-		{
-			if($this->cssFile===null)
-				$this->cssFile=$this->baseScriptUrl.'/styles.css';
-			Yii::app()->getClientScript()->registerCssFile($this->cssFile);
-		}
+        $this->_aryColumns = array_fill(1, $this->ItemColumns, $this->itemTemplate);
+        return parent::init();
 	}
 
 	/**
 	 * Renders the detail view.
 	 * This is the main entry of the whole detail view rendering.
+     * ----
+     * This is override function support multiple columns
 	 */
 	public function run()
 	{
@@ -139,6 +56,7 @@ class XDetailView extends CWidget
 		$i=0;
 		$n=is_array($this->itemCssClass) ? count($this->itemCssClass) : 0;
 						
+        $j = 1; //new::current column seq. number
 		foreach($this->attributes as $attribute)
 		{
 			if(is_string($attribute))
@@ -181,30 +99,30 @@ class XDetailView extends CWidget
 
 			$tr['{value}']=$value===null ? $this->nullDisplay : $formatter->format($value,$attribute['type']);
 
-			echo strtr(isset($attribute['template']) ? $attribute['template'] : $this->itemTemplate,$tr);
-			
+            $this->_aryColumns[$j] = strtr(isset($attribute['template']) ? $attribute['template'] : $this->itemTemplate,$tr);
+ 
+            if ($j == $this->ItemColumns){
+                echo CHtml::openTag($this->tagNameTR,array('class'=>$n ? $this->itemCssClass[intval($i/$this->ItemColumns)%$n] : ''));
+                for ( $k = 1; $k <= $this->ItemColumns; $k += 1) {
+                    echo $this->_aryColumns[$k];
+                    //reset in case the total [fields count] % [itemcolumns] <> 0
+                    $this->_aryColumns[$k] = '<th></th><td></td>';
+                }
+                echo CHtml::closeTag($this->tagNameTR);
+                $j = 1;
+            } else {
+                $j = $j + 1;
+            }
 			$i++;
-															
+        }
+			//any left over fields?
+			if ($i % $this->ItemColumns != 0){
+				echo CHtml::openTag($this->tagNameTR,array('class'=>$n ? $this->itemCssClass[intval($i/$this->ItemColumns)%$n] : ''));
+				for ( $k = 1; $k <= $this->ItemColumns; $k += 1) {
+					echo $this->_aryColumns[$k];
+			}
+				echo CHtml::closeTag($this->tagNameTR);
 		}
-
-		echo CHtml::closeTag($this->tagName);
-	}
-
-	/**
-	 * @return CFormatter the formatter instance. Defaults to the 'format' application component.
-	 */
-	public function getFormatter()
-	{
-		if($this->_formatter===null)
-			$this->_formatter=Yii::app()->format;
-		return $this->_formatter;
-	}
-
-	/**
-	 * @param CFormatter $value the formatter instance
-	 */
-	public function setFormatter($value)
-	{
-		$this->_formatter=$value;
+        echo CHtml::closeTag($this->tagName);
 	}
 }
